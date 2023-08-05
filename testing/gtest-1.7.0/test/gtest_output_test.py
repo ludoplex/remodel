@@ -212,7 +212,7 @@ def GetShellCommandOutput(env_cmd):
   # Spawns cmd in a sub-process, and gets its standard I/O file objects.
   # Set and save the environment properly.
   environ = os.environ.copy()
-  environ.update(env_cmd[0])
+  environ |= env_cmd[0]
   p = gtest_test_utils.Subprocess(env_cmd[1], env=environ)
 
   return p.output
@@ -278,14 +278,12 @@ class GTestOutputTest(gtest_test_utils.TestCase):
   def testOutput(self):
     output = GetOutputOfAllCommands()
 
-    golden_file = open(GOLDEN_PATH, 'rb')
-    # A mis-configured source control system can cause \r appear in EOL
-    # sequences when we read the golden file irrespective of an operating
-    # system used. Therefore, we need to strip those \r's from newlines
-    # unconditionally.
-    golden = ToUnixLineEnding(golden_file.read())
-    golden_file.close()
-
+    with open(GOLDEN_PATH, 'rb') as golden_file:
+      # A mis-configured source control system can cause \r appear in EOL
+      # sequences when we read the golden file irrespective of an operating
+      # system used. Therefore, we need to strip those \r's from newlines
+      # unconditionally.
+      golden = ToUnixLineEnding(golden_file.read())
     # We want the test to pass regardless of certain features being
     # supported or not.
 
@@ -293,9 +291,7 @@ class GTestOutputTest(gtest_test_utils.TestCase):
     normalized_actual = RemoveTypeInfoDetails(output)
     normalized_golden = RemoveTypeInfoDetails(golden)
 
-    if CAN_GENERATE_GOLDEN_FILE:
-      self.assertEqual(normalized_golden, normalized_actual)
-    else:
+    if not CAN_GENERATE_GOLDEN_FILE:
       normalized_actual = NormalizeToCurrentPlatform(
           RemoveTestCounts(normalized_actual))
       normalized_golden = NormalizeToCurrentPlatform(
@@ -312,16 +308,15 @@ class GTestOutputTest(gtest_test_utils.TestCase):
             '_gtest_output_test_normalized_golden.txt'), 'wb').write(
                 normalized_golden)
 
-      self.assertEqual(normalized_golden, normalized_actual)
+    self.assertEqual(normalized_golden, normalized_actual)
 
 
 if __name__ == '__main__':
   if sys.argv[1:] == [GENGOLDEN_FLAG]:
     if CAN_GENERATE_GOLDEN_FILE:
       output = GetOutputOfAllCommands()
-      golden_file = open(GOLDEN_PATH, 'wb')
-      golden_file.write(output)
-      golden_file.close()
+      with open(GOLDEN_PATH, 'wb') as golden_file:
+        golden_file.write(output)
     else:
       message = (
           """Unable to write a golden file when compiled in an environment
